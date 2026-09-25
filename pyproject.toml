@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tide"
+version = "0.1.0"
+description = "Multi-cloud spot arbitrage scheduler for AWS and Azure"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.54.0",
+    "typer==0.27.2",
+    "sqlalchemy==2.1.0",
+    "alembic==1.20.0",
+    "psycopg[binary]==3.3.6",
+    "pydantic-settings==2.15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.16.9",
+    "pytest==9.1.1",
+    "httpx==0.28.1",
+]
+
+[project.scripts]
+tide = "tide.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["tide*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: import sorting, B: bugbear, UP: pyupgrade
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
