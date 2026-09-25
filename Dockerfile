@@ -24,7 +24,7 @@ COPY --from=build /venv /venv
 ENV PATH="/venv/bin:$PATH" PYTHONUNBUFFERED=1
 
 WORKDIR /app
-COPY alembic.ini ./
+COPY alembic.ini catalog.yaml ./
 COPY alembic ./alembic
 
 USER tide

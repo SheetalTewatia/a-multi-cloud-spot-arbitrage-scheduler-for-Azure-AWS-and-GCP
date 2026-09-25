@@ -1,0 +1,24 @@
+# Hand-curated catalogue of comparable general-purpose Linux instance types.
+# vcpus and memory_gb come from the providers' docs; they are used to normalize prices
+# to USD per vCPU-hour and USD per GB-RAM-hour.
+#
+# Pairs meant to be compared across clouds:
+#   m5.large  <-> Standard_D2s_v5   (2 vCPU, 8 GB, Intel)
+#   m5.xlarge <-> Standard_D4s_v5   (4 vCPU, 16 GB, Intel)
+#   t3.large  <-> Standard_D2as_v5  (2 vCPU, 8 GB, cheapest 2-vCPU option on each side)
+#
+# Azure B-series is not used: it has no Spot pricing.
+
+aws:
+  regions: [ap-south-1, us-east-1]
+  instance_types:
+    m5.large: {vcpus: 2, memory_gb: 8}
+    m5.xlarge: {vcpus: 4, memory_gb: 16}
+    t3.large: {vcpus: 2, memory_gb: 8}
+
+azure:
+  regions: [centralindia, eastus]
+  instance_types:
+    Standard_D2s_v5: {vcpus: 2, memory_gb: 8}
+    Standard_D4s_v5: {vcpus: 4, memory_gb: 16}
+    Standard_D2as_v5: {vcpus: 2, memory_gb: 8}
