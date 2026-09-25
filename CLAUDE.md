@@ -31,8 +31,10 @@ The 60% figure must come from a real measurement: Tide's actual spot cost compar
 
 ## Tech stack
 
+Always use the latest stable version of everything: Python, libraries, Docker base images, Postgres, Terraform and its providers, GitHub Actions and CI tools. Look up the current version before adding or upgrading anything, and don't use betas or release candidates. Pin exact versions (in `pyproject.toml`, image tags and CI) so builds are reproducible.
+
 - Language: Python 3.14, using FastAPI for the API and Typer for the CLI.
-- Storage: PostgreSQL for prices, decisions, runs and bills. Use SQLAlchemy and Alembic.
+- Storage: PostgreSQL 18 for prices, decisions, runs and bills. Use SQLAlchemy and Alembic.
 - Infrastructure: Terraform, with one module per cloud (small spot VM, network, S3 bucket / Azure Blob container).
 - Containers: Docker for the scheduler and for the sample workloads. Use Docker Compose for local development.
 - Orchestration: the scheduler itself runs on Kubernetes (kind locally, a Helm chart for any cluster).
