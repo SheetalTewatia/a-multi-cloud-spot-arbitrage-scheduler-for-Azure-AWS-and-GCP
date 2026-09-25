@@ -1,0 +1,50 @@
+[
+  {
+    "AvailabilityZone": "ap-south-1a",
+    "AvailabilityZoneId": "aps1-az1",
+    "InstanceType": "m5.large",
+    "ProductDescription": "Linux/UNIX",
+    "SpotPrice": "0.030600",
+    "Timestamp": "2026-09-25T15:00:00+00:00"
+  },
+  {
+    "AvailabilityZone": "ap-south-1c",
+    "AvailabilityZoneId": "aps1-az2",
+    "InstanceType": "t3.large",
+    "ProductDescription": "Linux/UNIX",
+    "SpotPrice": "0.034900",
+    "Timestamp": "2026-09-25T11:00:00+00:00"
+  },
+  {
+    "AvailabilityZone": "ap-south-1c",
+    "AvailabilityZoneId": "aps1-az2",
+    "InstanceType": "m5.large",
+    "ProductDescription": "Linux/UNIX",
+    "SpotPrice": "0.028100",
+    "Timestamp": "2026-09-25T11:00:00+00:00"
+  },
+  {
+    "AvailabilityZone": "ap-south-1a",
+    "AvailabilityZoneId": "aps1-az1",
+    "InstanceType": "t3.large",
+    "ProductDescription": "Linux/UNIX",
+    "SpotPrice": "0.037700",
+    "Timestamp": "2026-09-25T10:00:00+00:00"
+  },
+  {
+    "AvailabilityZone": "ap-south-1b",
+    "AvailabilityZoneId": "aps1-az3",
+    "InstanceType": "t3.large",
+    "ProductDescription": "Linux/UNIX",
+    "SpotPrice": "0.036700",
+    "Timestamp": "2026-09-25T09:00:00+00:00"
+  },
+  {
+    "AvailabilityZone": "ap-south-1b",
+    "AvailabilityZoneId": "aps1-az3",
+    "InstanceType": "m5.large",
+    "ProductDescription": "Linux/UNIX",
+    "SpotPrice": "0.040500",
+    "Timestamp": "2026-09-25T08:00:00+00:00"
+  }
+]
