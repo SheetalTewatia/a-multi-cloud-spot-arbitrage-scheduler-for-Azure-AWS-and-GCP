@@ -16,13 +16,16 @@ dependencies = [
     "alembic==1.20.0",
     "psycopg[binary]==3.3.6",
     "pydantic-settings==2.15.0",
+    "boto3==1.43.102",
+    "httpx2==2.13.1",
+    "pyyaml==6.0.3",
+    "rich==15.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff==0.16.9",
     "pytest==9.1.1",
-    "httpx2==2.13.1",
 ]
 
 [project.scripts]
@@ -38,6 +41,10 @@ target-version = "py314"
 [tool.ruff.lint]
 # E/W: pycodestyle, F: pyflakes, I: import sorting, B: bugbear, UP: pyupgrade
 select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+# The local alembic/ folder would otherwise make ruff treat the alembic library as first-party.
+known-third-party = ["alembic"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
