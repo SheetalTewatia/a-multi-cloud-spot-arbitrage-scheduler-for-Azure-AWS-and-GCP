@@ -16,6 +16,8 @@ dist/
 *.tfstate
 *.tfstate.*
 *.tfplan
+# Lock files belong to root configurations, not reusable modules.
+infra/terraform/*/.terraform.lock.hcl
 crash.log
 
 # Editors / OS
