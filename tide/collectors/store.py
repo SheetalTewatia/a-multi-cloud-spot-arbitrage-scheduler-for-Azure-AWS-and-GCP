@@ -25,6 +25,10 @@ def save_quotes(session: Session, quotes: list[PriceQuote], collected_at: dateti
             memory_gb=q.memory_gb,
             usd_per_vcpu_hour=q.usd_per_vcpu_hour,
             usd_per_gb_hour=q.usd_per_gb_hour,
+            gpu_model=q.gpu_model,
+            gpu_count=q.gpu_count,
+            gpu_memory_gb=q.gpu_memory_gb,
+            usd_per_gpu_hour=q.usd_per_gpu_hour,
         )
         for q in quotes
     )
@@ -36,9 +40,12 @@ def latest_prices(
     cloud: str | None = None,
     region: str | None = None,
     pricing: str | None = None,
+    gpu: bool | None = None,
 ) -> list[Price]:
-    """The most recent price for each (cloud, region, zone, instance type, pricing),
-    cheapest per vCPU-hour first.
+    """The most recent price for each (cloud, region, zone, instance type, pricing).
+
+    gpu=True returns only GPU types, cheapest per GPU-hour first; gpu=False only CPU types,
+    and None returns both. Otherwise results are sorted cheapest per vCPU-hour first.
 
     Uses Postgres DISTINCT ON: sort each group newest-first and keep the first row.
     """
@@ -50,6 +57,12 @@ def latest_prices(
         query = query.where(Price.region == region)
     if pricing:
         query = query.where(Price.pricing == pricing)
+    if gpu is True:
+        query = query.where(Price.gpu_model.is_not(None))
+    elif gpu is False:
+        query = query.where(Price.gpu_model.is_(None))
 
     rows = session.scalars(query).all()
+    if gpu:
+        return sorted(rows, key=lambda p: p.usd_per_gpu_hour)
     return sorted(rows, key=lambda p: p.usd_per_vcpu_hour)

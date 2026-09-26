@@ -56,14 +56,15 @@ def collect(
 
 @app.command()
 def prices(
+    gpu: Annotated[bool, typer.Option(help="Show GPU types, priced per GPU-hour.")] = False,
     cloud: Annotated[str | None, typer.Option(help="aws or azure")] = None,
     region: Annotated[str | None, typer.Option()] = None,
     spot_only: Annotated[bool, typer.Option(help="Hide on-demand rows.")] = False,
     limit: Annotated[int, typer.Option(min=1)] = 50,
 ) -> None:
-    """Show the latest stored prices, cheapest per vCPU-hour first."""
+    """Show the latest stored prices: CPU types per vCPU-hour, or GPU types with --gpu."""
     with db.SessionLocal() as session:
-        rows = latest_prices(session, cloud=cloud, region=region)
+        rows = latest_prices(session, cloud=cloud, region=region, gpu=gpu)
     if not rows:
         typer.echo("No prices stored yet. Run `tide collect` first.")
         raise typer.Exit(code=1)
@@ -74,31 +75,43 @@ def prices(
     }
     if spot_only:
         rows = [r for r in rows if r.pricing == SPOT]
+    catalog = load_catalog()
 
-    table = Table(title="Latest prices (USD)")
-    for column in ["Cloud", "Region", "Zone", "Type", "Pricing"]:
+    table = Table(title=f"Latest {'GPU' if gpu else 'CPU'} prices (USD)")
+    for column in ["Cloud", "Region", "Zone", "Type"] + (["GPU"] if gpu else []) + ["Pricing"]:
         table.add_column(column)
-    for column in ["per hour", "per vCPU-hr", "per GB-hr", "vs on-demand", "age"]:
+    per_unit = ["per GPU-hr"] if gpu else ["per vCPU-hr", "per GB-hr"]
+    for column in ["per hour", *per_unit, "vs on-demand", "age"]:
         table.add_column(column, justify="right")
 
     now = datetime.now(UTC)
     for r in rows[:limit]:
         od = on_demand.get((r.cloud, r.region, r.instance_type))
-        saving = f"-{1 - r.usd_per_hour / od:.0%}" if r.pricing == SPOT and od else ""
+        saving = f"{r.usd_per_hour / od - 1:+.0%}" if r.pricing == SPOT and od else ""
         age_minutes = int((now - r.collected_at).total_seconds() // 60)
+        spec = catalog.spec(r.cloud, r.instance_type)
+        name = r.instance_type + (" (ref)" if spec and spec.reference_only else "")
+        if gpu:
+            hardware = [f"{r.gpu_count}x {r.gpu_model} {r.gpu_memory_gb:g}GB"]
+            unit_prices = [f"{r.usd_per_gpu_hour:.4f}"]
+        else:
+            hardware = []
+            unit_prices = [f"{r.usd_per_vcpu_hour:.5f}", f"{r.usd_per_gb_hour:.5f}"]
         table.add_row(
             r.cloud,
             r.region,
             r.zone or "-",
-            r.instance_type,
+            name,
+            *hardware,
             r.pricing,
             f"{r.usd_per_hour:.4f}",
-            f"{r.usd_per_vcpu_hour:.5f}",
-            f"{r.usd_per_gb_hour:.5f}",
+            *unit_prices,
             saving,
             f"{age_minutes}m",
         )
     console.print(table)
+    if gpu:
+        console.print("(ref) = reference only: priced for comparison, never launched.")
 
 
 if __name__ == "__main__":

@@ -28,6 +28,11 @@ class Price(Base):
     memory_gb: Mapped[float]
     usd_per_vcpu_hour: Mapped[float]
     usd_per_gb_hour: Mapped[float]
+    # GPU instance types only (NULL for CPU types)
+    gpu_model: Mapped[str | None] = mapped_column(String(20))
+    gpu_count: Mapped[int | None]
+    gpu_memory_gb: Mapped[float | None]
+    usd_per_gpu_hour: Mapped[float | None]
 
     __table_args__ = (
         CheckConstraint("cloud IN ('aws', 'azure')", name="ck_prices_cloud"),

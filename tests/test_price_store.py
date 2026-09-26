@@ -58,3 +58,17 @@ def test_collect_all_keeps_other_cloud_when_one_fails(monkeypatch):
 
     assert len(quotes) == 1
     assert errors == {"aws": "AWS credentials expired"}
+
+
+def test_latest_prices_gpu_filter_sorts_per_gpu_hour(db_session):
+    p4d = PriceQuote(
+        "aws", "us-east-1", "us-east-1a", "p4d.24xlarge", SPOT, 15.0, 96, 1152, "A100", 8, 40
+    )
+    t4 = PriceQuote("aws", "us-east-1", "us-east-1a", "g4dn.xlarge", SPOT, 0.25, 4, 16, "T4", 1, 16)
+    save_quotes(db_session, [p4d, t4, quote(0.04)], T0)
+
+    gpu_rows = latest_prices(db_session, gpu=True)
+    assert [r.instance_type for r in gpu_rows] == ["g4dn.xlarge", "p4d.24xlarge"]
+    assert gpu_rows[1].usd_per_gpu_hour == pytest.approx(15.0 / 8)
+    assert [r.instance_type for r in latest_prices(db_session, gpu=False)] == ["m5.large"]
+    assert len(latest_prices(db_session)) == 3
