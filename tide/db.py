@@ -6,7 +6,10 @@ from sqlalchemy.orm import sessionmaker
 from tide.config import settings
 
 # pool_pre_ping checks a connection is alive before using it (Postgres restarts, etc.).
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+# connect_timeout makes an unreachable database fail in seconds instead of hanging.
+engine = create_engine(
+    settings.database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5}
+)
 SessionLocal = sessionmaker(bind=engine)
 
 
