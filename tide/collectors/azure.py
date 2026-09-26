@@ -1,7 +1,9 @@
 """Azure price collector, using the public Retail Prices API (no credentials needed).
 
 The API returns every meter for a VM size: Linux and Windows, pay-as-you-go, Spot and
-Low Priority, and sometimes Cloud Services. We keep only Linux VM meters:
+Low Priority, and sometimes Cloud Services. We keep only Linux VM meters. (Product names
+vary: "Virtual Machines Dsv5 Series" but "NCads A100 v4 Series Linux", so we filter out
+what we don't want instead of matching what we do.)
   - meterName ending in "Spot"  -> spot price
   - plain meterName             -> on-demand (pay-as-you-go) price
 
@@ -29,8 +31,8 @@ def parse_items(items: list[dict], region: str, catalog: CloudCatalog) -> list[P
 
         if instance_type not in catalog.instance_types:
             continue
-        if not product.startswith("Virtual Machines") or product.endswith("Windows"):
-            continue  # Cloud Services or Windows meters
+        if "Windows" in product or "Cloud Services" in product:
+            continue
         if "Low Priority" in meter or item["unitOfMeasure"] != "1 Hour":
             continue
 
@@ -41,17 +43,15 @@ def parse_items(items: list[dict], region: str, catalog: CloudCatalog) -> list[P
 
     quotes = []
     for (instance_type, pricing), item in sorted(latest.items()):
-        spec = catalog.instance_types[instance_type]
         quotes.append(
-            PriceQuote(
+            PriceQuote.from_spec(
+                catalog.instance_types[instance_type],
                 cloud="azure",
                 region=region,
                 zone=None,
                 instance_type=instance_type,
                 pricing=pricing,
                 usd_per_hour=float(item["retailPrice"]),
-                vcpus=spec.vcpus,
-                memory_gb=spec.memory_gb,
             )
         )
     return quotes

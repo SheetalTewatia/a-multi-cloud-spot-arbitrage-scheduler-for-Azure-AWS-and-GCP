@@ -6,7 +6,11 @@ from datetime import datetime
 import pytest
 from conftest import load_fixture
 
-from tide.collectors.aws import parse_on_demand_product, parse_spot_history
+from tide.collectors.aws import (
+    fetch_on_demand_product,
+    parse_on_demand_product,
+    parse_spot_history,
+)
 from tide.collectors.common import SPOT
 
 
@@ -57,3 +61,22 @@ def test_parse_on_demand_product_without_hourly_price_fails():
             dimension["unit"] = "Quantity"
     with pytest.raises(ValueError):
         parse_on_demand_product(json.dumps(product))
+
+
+class FakePricing:
+    """Stands in for the boto3 pricing client and returns canned products."""
+
+    def __init__(self, products):
+        self.products = products
+
+    def get_products(self, **_kwargs):
+        return {"PriceList": self.products}
+
+
+def test_fetch_on_demand_product_missing_type_returns_none():
+    assert fetch_on_demand_product(FakePricing([]), "ap-south-1", "g6.xlarge") is None
+
+
+def test_fetch_on_demand_product_ambiguous_filters_fail():
+    with pytest.raises(ValueError):
+        fetch_on_demand_product(FakePricing(["{}", "{}"]), "us-east-1", "p4d.24xlarge")

@@ -1,13 +1,21 @@
-# Hand-curated catalogue of comparable general-purpose Linux instance types.
-# vcpus and memory_gb come from the providers' docs; they are used to normalize prices
-# to USD per vCPU-hour and USD per GB-RAM-hour.
+# Hand-curated catalogue of comparable Linux instance types.
+# vcpus, memory_gb and GPU details come from the providers' docs; they are used to normalize
+# prices to USD per vCPU-hour, per GB-RAM-hour and (for GPU types) per GPU-hour.
 #
-# Pairs meant to be compared across clouds:
+# CPU pairs meant to be compared across clouds:
 #   m5.large  <-> Standard_D2s_v5   (2 vCPU, 8 GB, Intel)
 #   m5.xlarge <-> Standard_D4s_v5   (4 vCPU, 16 GB, Intel)
 #   t3.large  <-> Standard_D2as_v5  (2 vCPU, 8 GB, cheapest 2-vCPU option on each side)
-#
 # Azure B-series is not used: it has no Spot pricing.
+#
+# GPU types, one GPU each unless noted:
+#   T4   16 GB: g4dn.xlarge        <-> Standard_NC4as_T4_v3
+#   A10  24 GB: g5.xlarge (A10G)   <-> Standard_NV36ads_A10_v5
+#   L4   24 GB: g6.xlarge          (AWS only)
+#   A100      : p4d.24xlarge (8x 40 GB) <-> Standard_NC24ads_A100_v4 (1x 80 GB)
+#
+# reference_only: priced for comparison but never placed or launched (cost guardrail).
+# GPU memory uses the marketed size (AWS reports the A10G/L4 as 22.35 GiB usable).
 
 aws:
   regions: [ap-south-1, us-east-1]
@@ -15,6 +23,23 @@ aws:
     m5.large: {vcpus: 2, memory_gb: 8}
     m5.xlarge: {vcpus: 4, memory_gb: 16}
     t3.large: {vcpus: 2, memory_gb: 8}
+    g4dn.xlarge:
+      vcpus: 4
+      memory_gb: 16
+      gpu: {model: T4, count: 1, memory_gb: 16}
+    g5.xlarge:
+      vcpus: 4
+      memory_gb: 16
+      gpu: {model: A10, count: 1, memory_gb: 24} # A10G, AWS's variant of the A10
+    g6.xlarge:
+      vcpus: 4
+      memory_gb: 16
+      gpu: {model: L4, count: 1, memory_gb: 24}
+    p4d.24xlarge:
+      vcpus: 96
+      memory_gb: 1152
+      gpu: {model: A100, count: 8, memory_gb: 40}
+      reference_only: true
 
 azure:
   regions: [centralindia, eastus]
@@ -22,3 +47,16 @@ azure:
     Standard_D2s_v5: {vcpus: 2, memory_gb: 8}
     Standard_D4s_v5: {vcpus: 4, memory_gb: 16}
     Standard_D2as_v5: {vcpus: 2, memory_gb: 8}
+    Standard_NC4as_T4_v3:
+      vcpus: 4
+      memory_gb: 28
+      gpu: {model: T4, count: 1, memory_gb: 16}
+    Standard_NV36ads_A10_v5:
+      vcpus: 36
+      memory_gb: 440
+      gpu: {model: A10, count: 1, memory_gb: 24}
+    Standard_NC24ads_A100_v4:
+      vcpus: 24
+      memory_gb: 220
+      gpu: {model: A100, count: 1, memory_gb: 80}
+      reference_only: true

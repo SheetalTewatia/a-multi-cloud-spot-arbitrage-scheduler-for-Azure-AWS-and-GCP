@@ -70,3 +70,19 @@ def test_fetch_items_follows_next_page_link():
 
     client = httpx2.Client(transport=httpx2.MockTransport(handler))
     assert fetch_items(client, "eastus", ["Standard_D2s_v5"]) == [{"n": 1}, {"n": 2}]
+
+
+def test_parse_items_gpu_including_a100_product_naming(catalog):
+    # A100 meters are named "NCads A100 v4 Series Linux", not "Virtual Machines ...".
+    items = load_fixture("azure_retail_prices_gpu_eastus.json")["Items"]
+    quotes = parse_items(items, "eastus", catalog.azure)
+
+    prices = {(q.instance_type, q.pricing): q.usd_per_hour for q in quotes}
+    assert prices == {
+        ("Standard_NC4as_T4_v3", SPOT): pytest.approx(0.149174),
+        ("Standard_NC4as_T4_v3", ON_DEMAND): pytest.approx(0.526),
+        ("Standard_NC24ads_A100_v4", SPOT): pytest.approx(0.67877),
+        ("Standard_NC24ads_A100_v4", ON_DEMAND): pytest.approx(3.673),
+    }
+    a100 = next(q for q in quotes if q.instance_type == "Standard_NC24ads_A100_v4")
+    assert (a100.gpu_model, a100.gpu_count, a100.gpu_memory_gb) == ("A100", 1, 80)

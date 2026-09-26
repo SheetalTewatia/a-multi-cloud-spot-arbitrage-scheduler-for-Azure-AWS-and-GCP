@@ -8,12 +8,15 @@ Both are read-only API calls with no charge. Credentials come from the normal bo
 """
 
 import json
+import logging
 from datetime import UTC, datetime
 
 import boto3
 
 from tide.catalog import CloudCatalog
 from tide.collectors.common import ON_DEMAND, SPOT, PriceQuote
+
+log = logging.getLogger(__name__)
 
 LINUX = "Linux/UNIX"
 
@@ -34,17 +37,15 @@ def parse_spot_history(history: list[dict], region: str, catalog: CloudCatalog) 
 
     quotes = []
     for (zone, instance_type), row in sorted(latest.items()):
-        spec = catalog.instance_types[instance_type]
         quotes.append(
-            PriceQuote(
+            PriceQuote.from_spec(
+                catalog.instance_types[instance_type],
                 cloud="aws",
                 region=region,
                 zone=zone,
                 instance_type=instance_type,
                 pricing=SPOT,
                 usd_per_hour=float(row["SpotPrice"]),
-                vcpus=spec.vcpus,
-                memory_gb=spec.memory_gb,
             )
         )
     return quotes
@@ -74,8 +75,11 @@ def fetch_spot_history(ec2, instance_types: list[str]) -> list[dict]:
     return [row for page in pages for row in page["SpotPriceHistory"]]
 
 
-def fetch_on_demand_product(pricing, region: str, instance_type: str) -> str:
-    """Return the single Price List product for Linux, shared tenancy, no pre-installed software."""
+def fetch_on_demand_product(pricing, region: str, instance_type: str) -> str | None:
+    """Return the single Price List product for Linux, shared tenancy, no pre-installed software.
+
+    Returns None if the instance type isn't sold in that region.
+    """
     filters = {
         "instanceType": instance_type,
         "regionCode": region,
@@ -84,13 +88,16 @@ def fetch_on_demand_product(pricing, region: str, instance_type: str) -> str:
         "preInstalledSw": "NA",
         "capacitystatus": "Used",
         "licenseModel": "No License required",
+        "marketoption": "OnDemand",  # GPU types also list "CapacityBlock" products
     }
     response = pricing.get_products(
         ServiceCode="AmazonEC2",
         Filters=[{"Type": "TERM_MATCH", "Field": k, "Value": v} for k, v in filters.items()],
     )
     products = response["PriceList"]
-    if len(products) != 1:
+    if not products:
+        return None
+    if len(products) > 1:  # the filters should pin down exactly one product
         raise ValueError(f"expected 1 product for {instance_type} in {region}, got {len(products)}")
     return products[0]
 
@@ -107,16 +114,18 @@ def collect(catalog: CloudCatalog) -> list[PriceQuote]:
 
         for instance_type, spec in catalog.instance_types.items():
             product = fetch_on_demand_product(pricing, region, instance_type)
+            if product is None:
+                log.warning("no on-demand price for %s in %s, skipping", instance_type, region)
+                continue
             quotes.append(
-                PriceQuote(
+                PriceQuote.from_spec(
+                    spec,
                     cloud="aws",
                     region=region,
                     zone=None,
                     instance_type=instance_type,
                     pricing=ON_DEMAND,
                     usd_per_hour=parse_on_demand_product(product),
-                    vcpus=spec.vcpus,
-                    memory_gb=spec.memory_gb,
                 )
             )
     return quotes

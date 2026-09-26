@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from tide.catalog import Catalog
-from tide.collectors.common import SPOT, PriceQuote, per_gb_hour, per_vcpu_hour
+from tide.collectors.common import SPOT, PriceQuote, per_gb_hour, per_gpu_hour, per_vcpu_hour
 
 
 def test_per_vcpu_hour():
@@ -44,3 +44,46 @@ def test_catalog_rejects_zero_vcpus():
     }
     with pytest.raises(ValidationError):
         Catalog.model_validate(bad)
+
+
+def test_per_gpu_hour():
+    # p4d.24xlarge: 8 A100s for $15.05/hr spot -> $1.88 per GPU-hour
+    assert per_gpu_hour(15.0469, 8) == pytest.approx(1.8809, abs=1e-4)
+
+
+def test_quote_from_spec_copies_gpu_details(catalog):
+    spec = catalog.aws.instance_types["g4dn.xlarge"]
+    quote = PriceQuote.from_spec(
+        spec,
+        cloud="aws",
+        region="ap-south-1",
+        zone="ap-south-1c",
+        instance_type="g4dn.xlarge",
+        pricing=SPOT,
+        usd_per_hour=0.2075,
+    )
+    assert (quote.gpu_model, quote.gpu_count, quote.gpu_memory_gb) == ("T4", 1, 16)
+    assert quote.usd_per_gpu_hour == pytest.approx(0.2075)
+    assert quote.usd_per_vcpu_hour == pytest.approx(0.2075 / 4)
+
+
+def test_cpu_quote_has_no_gpu_price():
+    quote = PriceQuote("aws", "us-east-1", None, "m5.large", SPOT, 0.04, 2, 8)
+    assert quote.gpu_model is None
+    assert quote.usd_per_gpu_hour is None
+
+
+def test_catalog_gpu_entries(catalog):
+    t4 = catalog.azure.instance_types["Standard_NC4as_T4_v3"]
+    assert t4.gpu.model == "T4" and t4.gpu.memory_gb == 16
+    assert catalog.spec("aws", "m5.large").gpu is None
+    # A100 types are for price comparison only (cost guardrail)
+    assert catalog.spec("aws", "p4d.24xlarge").reference_only
+    assert catalog.spec("azure", "Standard_NC24ads_A100_v4").reference_only
+    assert not t4.reference_only
+
+
+def test_catalog_has_two_gpu_regions_per_cloud(catalog):
+    for cloud in (catalog.aws, catalog.azure):
+        assert any(spec.gpu for spec in cloud.instance_types.values())
+        assert len(cloud.regions) >= 2
