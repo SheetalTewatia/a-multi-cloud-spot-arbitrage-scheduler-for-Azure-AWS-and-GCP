@@ -7,7 +7,7 @@ Credentials are never stored in the repo. AWS uses the standard boto3 chain (`AW
 environment variables, or `~/.aws/credentials`); Azure uses a service principal from
 environment variables (see `.env.example`).
 
-## Phase 2: price collection
+## Phases 2-3: price and eviction-risk collection
 
 ### AWS
 
@@ -33,6 +33,11 @@ Both are read-only, have no charge, and create no resources. IAM policy:
 ```
 
 (Neither action supports resource-level permissions, so `Resource` must be `*`.)
+
+### Eviction risk
+
+None. The AWS Spot Instance Advisor data is a public JSON file
+(`spot-bid-advisor.s3.amazonaws.com/spot-advisor-data.json`), and Azure uses a static table.
 
 ### Azure
 
