@@ -5,8 +5,9 @@ places each CPU or GPU/AI workload on the cheapest spot vCPU-hour or GPU-hour th
 still meet its deadline, migrates it when prices move or an eviction is signalled, and
 reconciles every decision against the real cloud bill.
 
-> Status: **Phase 3**: live CPU + GPU prices, eviction risk, and a scorer that ranks
-> placements (`tide plan`). See `CLAUDE.md` for the full design and build order.
+> Status: **Phase 4**: live CPU + GPU prices, eviction risk, a scorer that ranks
+> placements (`tide plan`), and a simulation mode that runs the full scheduler on replayed
+> prices (`tide simulate`). See `CLAUDE.md` for the full design and build order.
 
 ## Run locally
 
@@ -104,6 +105,43 @@ the workload are kept in the output with the reason (too small, wrong GPU, refer
 so every decision can be audited. The result also shows the saving against on-demand for
 the same instance type and region.
 
+## Simulation (`tide simulate`)
+
+```bash
+tide simulate workloads/cpu-batch.yaml                        # one run, savings report
+tide simulate workloads/gpu-finetune.yaml --trials 20         # 20 runs with different seeds
+tide simulate workloads/cpu-batch.yaml --trials 20 --eviction-multiplier 500   # stress test
+tide simulate workloads/cpu-batch.yaml --markdown docs/results/my-report.md
+tide runs                                                      # recent runs
+tide report <run-id>                                           # one run's report + decisions
+```
+
+Simulation runs the real scheduler loop against **stored price history** with a
+**fake executor**, so it costs nothing. Every 10 simulated minutes the loop:
+
+1. places the workload if it isn't running (first start, or after an eviction);
+2. otherwise migrates if a feasible option is **more than 20% cheaper** for the remaining
+   work (the threshold stops it flapping between near-equal prices);
+3. runs for 10 minutes at the current price, then checks for an eviction notice. The fake
+   executor draws evictions at random from each option's `p_evict` (scaled by
+   `--eviction-multiplier`).
+
+Each eviction or migration costs `restart_overhead_hours` of paid time with no progress.
+If an eviction makes the deadline impossible, the job finishes late on on-demand and the
+report shows the deadline as missed. Every decision is saved with the full list of scored
+candidates (the `decisions` table), and each run's totals go in the `runs` table.
+
+The savings report compares Tide's actual cost with two baselines:
+
+| Baseline | Meaning |
+| --- | --- |
+| On-demand, same instance-hours | The same instance types, regions and hours, at on-demand prices. This is the headline "% saved". |
+| Cheapest on-demand for the job | Running the whole job once, with no restarts, on the cheapest on-demand option across both clouds. Stricter: eviction overhead counts against Tide. |
+
+Reports so far are in [docs/results/](docs/results/). They are simulations, and they are
+only as good as the stored history: run `tide collect --watch` for a few days before
+drawing conclusions.
+
 ## Known limitations
 
 - Azure Spot prices from the Retail Prices API are list prices that Azure updates
@@ -116,6 +154,10 @@ the same instance type and region.
   ranking; it matters for long jobs, large restart overheads and deadlines with little
   slack. Simulation mode (Phase 4) will test how sensitive savings are to this assumption.
 - Azure eviction rates are assumed values until Resource Graph access is set up.
+- Simulated savings replay real prices but not real capacity: the fake executor always
+  gets the instance it asks for, and evictions are random draws from `p_evict`.
+- Azure spot list prices rarely change, and AWS spot prices move slowly, so with short
+  history the simulator seldom sees a price gap above the 20% migration threshold.
 - A GPU workload has one runtime for every GPU model, so a faster GPU (A10 vs T4) gets no
   credit for finishing sooner. Per-GPU throughput from a benchmark run comes in Phase 7.
 
@@ -126,14 +168,15 @@ tide/
   api/          FastAPI app
   collectors/   price + eviction-risk feeds per cloud
   scorer/       workload definitions, effective-cost model, candidate loading
-  scheduler/    placement + migration loop
+  scheduler/    placement + migration loop, fake executor, replay, savings reports
   executor/     launch/terminate on each cloud
   checkpoint/   save/restore workload state
   billing/      real-cost reconciliation
   exporter/     Prometheus metrics
 alembic/        database migrations
 catalog.yaml    instance types, regions, Azure static eviction table
-workloads/      example workload files for `tide plan`
+workloads/      example workload files for `tide plan` and `tide simulate`
+docs/results/   savings reports (simulated for now)
 infra/terraform one module per cloud (empty until Phases 5-6)
 ```
 
