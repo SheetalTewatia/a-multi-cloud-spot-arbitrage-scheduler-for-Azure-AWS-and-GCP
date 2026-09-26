@@ -1,4 +1,4 @@
-"""The `tide` command-line tool. More commands (simulate, destroy-all) arrive in later phases."""
+"""The `tide` command-line tool. More commands (destroy-all) arrive in later phases."""
 
 import logging
 import time
@@ -9,12 +9,19 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.table import Table
+from sqlalchemy import select
 
 from tide import __version__, db
 from tide.catalog import load_catalog
 from tide.collectors.common import ON_DEMAND, SPOT
 from tide.collectors.run import collect_and_store
 from tide.collectors.store import latest_prices
+from tide.models import Run
+from tide.scheduler import report as reports
+from tide.scheduler.executor import FakeExecutor
+from tide.scheduler.loop import MIGRATE_THRESHOLD, run_workload
+from tide.scheduler.record import new_run_id, save_run
+from tide.scheduler.replay import ReplayFeed, first_usable, load_snapshots
 from tide.scorer.candidates import load_candidates
 from tide.scorer.model import plan as make_plan
 from tide.scorer.workload import load_workload
@@ -224,6 +231,137 @@ def plan(
             f"  vs ${result.on_demand_baseline:.4f} on-demand for the same type and region: "
             f"{result.savings_vs_on_demand:.0%} cheaper"
         )
+
+
+def print_rows(title: str, rows: list[tuple[str, str]]) -> None:
+    table = Table(title=title, show_header=False)
+    table.add_column(style="bold")
+    table.add_column()
+    for label, value in rows:
+        table.add_row(label, value)
+    console.print(table)
+
+
+def print_decisions(run: Run) -> None:
+    table = Table(title=f"Decisions in {run.id}")
+    for column in ["At (h)", "Event", "Where", "USD/hr", "Reason"]:
+        table.add_column(column)
+    for d in run.decisions:
+        where = " ".join(filter(None, [d.cloud, d.region, d.zone, d.instance_type, d.pricing]))
+        price = f"{d.usd_per_hour:.4f}" if d.usd_per_hour is not None else ""
+        table.add_row(f"{d.at_hours:.2f}", d.kind, where, price, d.reason)
+    console.print(table)
+
+
+@app.command()
+def simulate(
+    workload_file: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    trials: Annotated[int, typer.Option(min=1, help="Independent runs with seeds seed..")] = 1,
+    seed: Annotated[int, typer.Option(help="Random seed for simulated evictions.")] = 0,
+    eviction_multiplier: Annotated[
+        float, typer.Option(min=0, help="Scale every p_evict, for stress tests.")
+    ] = 1.0,
+    migrate_threshold: Annotated[float, typer.Option(min=0, max=1)] = MIGRATE_THRESHOLD,
+    start: Annotated[
+        datetime | None, typer.Option(help="Replay from this time (default: oldest usable prices).")
+    ] = None,
+    markdown: Annotated[Path | None, typer.Option(help="Also write the report here.")] = None,
+) -> None:
+    """Run the scheduler on replayed price history with a fake executor. Costs nothing."""
+    workload = load_workload(workload_file)
+    catalog = load_catalog()
+    with db.SessionLocal() as session:
+        snapshots = load_snapshots(session, catalog)
+    try:
+        if start is None:  # oldest history the workload can actually run on
+            start = first_usable(snapshots, lambda cs: bool(make_plan(workload, cs).eligible))
+        feed = ReplayFeed(snapshots, start.astimezone(UTC))
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    params = {
+        "seed": seed,
+        "eviction_multiplier": eviction_multiplier,
+        "migrate_threshold": migrate_threshold,
+        "replay_start": feed.start.isoformat(),
+        "workload_file": workload_file.as_posix(),
+    }
+    with db.SessionLocal() as session:
+        runs = []
+        for trial in range(trials):
+            executor = FakeExecutor(seed=seed + trial, eviction_multiplier=eviction_multiplier)
+            result = run_workload(workload, feed, executor, migrate_threshold=migrate_threshold)
+            run_params = params | {"seed": seed + trial}
+            run = save_run(
+                session, new_run_id("simulation"), "simulation", result, run_params, feed.start
+            )
+            runs.append(run)
+        session.commit()
+
+        longest = max(r.hours_elapsed for r in runs)
+        used = feed.snapshots_used(longest)
+        notes = [
+            "SIMULATED: stored prices replayed with a fake executor and random evictions. "
+            "No cloud resources were used.",
+            f"Replayed {used} price snapshot(s) from {feed.start:%Y-%m-%d %H:%M} UTC. "
+            f"Stored history ends {feed.times[-1]:%Y-%m-%d %H:%M} UTC; after that, prices "
+            "are held constant.",
+            f"Eviction multiplier {eviction_multiplier:g}, migration threshold "
+            f"{migrate_threshold:.0%}, seeds {seed}..{seed + trials - 1}.",
+        ]
+        for note in notes:
+            console.print(f"[dim]{note}[/]")
+        if trials == 1:
+            print_rows("Savings report", reports.run_rows(runs[0]))
+            print_decisions(runs[0])
+        else:
+            print_rows(f"Summary of {trials} trials", reports.trial_summary_rows(runs))
+        if markdown:
+            title = f"Simulated savings report: {workload.name}"
+            markdown.parent.mkdir(parents=True, exist_ok=True)
+            markdown.write_text(reports.markdown(runs, title, notes), encoding="utf-8")
+            console.print(f"Wrote {markdown}")
+
+
+@app.command()
+def report(
+    run_id: str,
+    markdown: Annotated[Path | None, typer.Option(help="Also write the report here.")] = None,
+) -> None:
+    """Show the savings report and decisions for one run."""
+    with db.SessionLocal() as session:
+        run = session.get(Run, run_id)
+        if run is None:
+            typer.echo(f"No run {run_id}. See `tide runs`.", err=True)
+            raise typer.Exit(code=1)
+        print_rows("Savings report", reports.run_rows(run))
+        print_decisions(run)
+        if markdown:
+            text = reports.markdown([run], f"Savings report: {run.workload_name}", [])
+            markdown.write_text(text, encoding="utf-8")
+
+
+@app.command()
+def runs(limit: Annotated[int, typer.Option(min=1)] = 20) -> None:
+    """List recent runs, newest first."""
+    with db.SessionLocal() as session:
+        rows = session.scalars(select(Run).order_by(Run.created_at.desc()).limit(limit)).all()
+        table = Table(title="Runs")
+        for column in ["Run", "Mode", "Workload", "Status", "Cost", "Saved", "Evict", "Migr"]:
+            table.add_column(column)
+        for r in rows:
+            table.add_row(
+                r.id,
+                r.mode,
+                r.workload_name,
+                r.status,
+                f"${r.tide_cost:.4f}",
+                reports.pct(reports.savings(r)),
+                str(r.evictions),
+                str(r.migrations),
+            )
+        console.print(table)
 
 
 if __name__ == "__main__":
