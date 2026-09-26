@@ -1,11 +1,15 @@
 """Load and validate catalog.yaml (the instance types and regions Tide considers)."""
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, PositiveFloat, PositiveInt
 
 from tide.config import settings
+
+# Monthly interruption-frequency buckets, as used by the AWS Spot Instance Advisor.
+EvictionBucket = Literal["<5%", "5-10%", "10-15%", "15-20%", ">20%"]
 
 
 class GpuSpec(BaseModel):
@@ -25,6 +29,8 @@ class InstanceSpec(BaseModel):
 class CloudCatalog(BaseModel):
     regions: list[str]
     instance_types: dict[str, InstanceSpec]
+    # Monthly eviction bucket per instance type, for clouds without a live feed (Azure).
+    static_eviction_rates: dict[str, EvictionBucket] = {}
 
 
 class Catalog(BaseModel):

@@ -7,6 +7,8 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from tide.collectors.common import PriceQuote
+from tide.collectors.eviction import EvictionRisk
+from tide.models import EvictionRisk as EvictionRiskRow
 from tide.models import Price
 
 
@@ -66,3 +68,30 @@ def latest_prices(
     if gpu:
         return sorted(rows, key=lambda p: p.usd_per_gpu_hour)
     return sorted(rows, key=lambda p: p.usd_per_vcpu_hour)
+
+
+def save_risks(session: Session, risks: list[EvictionRisk], collected_at: datetime) -> int:
+    session.add_all(
+        EvictionRiskRow(
+            collected_at=collected_at,
+            cloud=r.cloud,
+            region=r.region,
+            instance_type=r.instance_type,
+            bucket=r.bucket,
+            p_evict_hour=r.p_evict_hour,
+            source=r.source,
+        )
+        for r in risks
+    )
+    return len(risks)
+
+
+def latest_risks(session: Session) -> dict[tuple[str, str, str], EvictionRiskRow]:
+    """Most recent eviction risk, keyed by (cloud, region, instance_type)."""
+    key = (EvictionRiskRow.cloud, EvictionRiskRow.region, EvictionRiskRow.instance_type)
+    query = (
+        select(EvictionRiskRow)
+        .ext(distinct_on(*key))
+        .order_by(*key, EvictionRiskRow.collected_at.desc())
+    )
+    return {(r.cloud, r.region, r.instance_type): r for r in session.scalars(query)}

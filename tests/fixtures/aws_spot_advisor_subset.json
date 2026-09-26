@@ -1,0 +1,100 @@
+{
+  "ranges": [
+    {
+      "index": 0,
+      "label": "<5%",
+      "dots": 0,
+      "max": 5
+    },
+    {
+      "index": 1,
+      "label": "5-10%",
+      "dots": 1,
+      "max": 11
+    },
+    {
+      "index": 2,
+      "label": "10-15%",
+      "dots": 2,
+      "max": 16
+    },
+    {
+      "index": 3,
+      "label": "15-20%",
+      "dots": 3,
+      "max": 22
+    },
+    {
+      "index": 4,
+      "label": ">20%",
+      "dots": 4,
+      "max": 100
+    }
+  ],
+  "spot_advisor": {
+    "ap-south-1": {
+      "Linux": {
+        "m5.large": {
+          "s": 59,
+          "r": 4
+        },
+        "m5.xlarge": {
+          "s": 66,
+          "r": 2
+        },
+        "t3.large": {
+          "s": 56,
+          "r": 1
+        },
+        "g4dn.xlarge": {
+          "s": 54,
+          "r": 3
+        },
+        "g5.xlarge": {
+          "s": 54,
+          "r": 4
+        },
+        "g6.xlarge": {
+          "s": 53,
+          "r": 4
+        },
+        "p4d.24xlarge": {
+          "s": 0,
+          "r": 0
+        }
+      }
+    },
+    "us-east-1": {
+      "Linux": {
+        "m5.large": {
+          "s": 59,
+          "r": 4
+        },
+        "m5.xlarge": {
+          "s": 68,
+          "r": 4
+        },
+        "t3.large": {
+          "s": 53,
+          "r": 0
+        },
+        "g4dn.xlarge": {
+          "s": 60,
+          "r": 2
+        },
+        "g5.xlarge": {
+          "s": 56,
+          "r": 4
+        },
+        "g6.xlarge": {
+          "s": 49,
+          "r": 4
+        },
+        "p4d.24xlarge": {
+          "s": 56,
+          "r": 3
+        }
+      }
+    }
+  }
+}

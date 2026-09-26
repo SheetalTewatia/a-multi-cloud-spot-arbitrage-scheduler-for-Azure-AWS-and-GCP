@@ -4,9 +4,10 @@ import logging
 from datetime import UTC, datetime
 
 from tide.catalog import Catalog
-from tide.collectors import aws, azure
+from tide.collectors import aws, azure, eviction
 from tide.collectors.common import PriceQuote
-from tide.collectors.store import save_quotes
+from tide.collectors.eviction import EvictionRisk
+from tide.collectors.store import save_quotes, save_risks
 from tide.db import SessionLocal
 
 log = logging.getLogger(__name__)
@@ -34,10 +35,27 @@ def collect_all(catalog: Catalog) -> tuple[list[PriceQuote], dict[str, str]]:
     return quotes, errors
 
 
-def collect_and_store(catalog: Catalog) -> tuple[int, dict[str, str]]:
-    """Collect from both clouds and save everything in one transaction."""
+def collect_risks(catalog: Catalog, errors: dict[str, str]) -> list[EvictionRisk]:
+    """Collect eviction risks; on failure record the error and return nothing."""
+    try:
+        risks = eviction.collect(catalog)
+        log.info("collected %d eviction risks", len(risks))
+        return risks
+    except Exception as exc:
+        log.exception("eviction collector failed")
+        errors["eviction"] = str(exc)
+        return []
+
+
+def collect_and_store(catalog: Catalog) -> tuple[int, int, dict[str, str]]:
+    """Collect prices and eviction risks, and save everything in one transaction.
+
+    Returns (prices saved, risks saved, errors).
+    """
     quotes, errors = collect_all(catalog)
+    risks = collect_risks(catalog, errors)
     collected_at = datetime.now(UTC)
     with SessionLocal.begin() as session:
-        saved = save_quotes(session, quotes, collected_at)
-    return saved, errors
+        saved_prices = save_quotes(session, quotes, collected_at)
+        saved_risks = save_risks(session, risks, collected_at)
+    return saved_prices, saved_risks, errors

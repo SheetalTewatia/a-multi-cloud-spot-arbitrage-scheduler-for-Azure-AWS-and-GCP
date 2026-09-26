@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from tide.catalog import Catalog, load_catalog
 from tide.db import engine
-from tide.models import Price
+from tide.models import EvictionRisk, Price
 
 FIXTURES = Path(__file__).parent / "fixtures"
 REPO_ROOT = Path(__file__).parent.parent
@@ -27,12 +27,13 @@ def catalog() -> Catalog:
 
 @pytest.fixture
 def db_session():
-    """A session that starts with an empty prices table and rolls everything back afterwards,
+    """A session that starts with empty tables and rolls everything back afterwards,
     so tests neither see nor destroy real collected data (needs Postgres + migrations)."""
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
-    session.execute(delete(Price))
+    for table in (Price, EvictionRisk):
+        session.execute(delete(table))
     yield session
     session.close()
     transaction.rollback()

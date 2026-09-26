@@ -39,3 +39,22 @@ class Price(Base):
         CheckConstraint("pricing IN ('spot', 'on_demand')", name="ck_prices_pricing"),
         Index("ix_prices_latest", "cloud", "region", "instance_type", "pricing", "collected_at"),
     )
+
+
+class EvictionRisk(Base):
+    """Eviction risk per (cloud, region, instance type), appended on every collection."""
+
+    __tablename__ = "eviction_risks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cloud: Mapped[str] = mapped_column(String(10))
+    region: Mapped[str] = mapped_column(String(40))
+    instance_type: Mapped[str] = mapped_column(String(40))
+    bucket: Mapped[str] = mapped_column(String(10))  # monthly interruption bucket, e.g. "5-10%"
+    p_evict_hour: Mapped[float]
+    source: Mapped[str] = mapped_column(String(30))
+
+    __table_args__ = (
+        Index("ix_eviction_risks_latest", "cloud", "region", "instance_type", "collected_at"),
+    )
