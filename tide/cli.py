@@ -320,7 +320,8 @@ def simulate(
         if markdown:
             title = f"Simulated savings report: {workload.name}"
             markdown.parent.mkdir(parents=True, exist_ok=True)
-            markdown.write_text(reports.markdown(runs, title, notes), encoding="utf-8")
+            text = reports.markdown(runs, title, notes)
+            markdown.write_text(text, encoding="utf-8", newline="\n")
             console.print(f"Wrote {markdown}")
 
 
@@ -339,7 +340,7 @@ def report(
         print_decisions(run)
         if markdown:
             text = reports.markdown([run], f"Savings report: {run.workload_name}", [])
-            markdown.write_text(text, encoding="utf-8")
+            markdown.write_text(text, encoding="utf-8", newline="\n")
 
 
 @app.command()
