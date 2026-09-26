@@ -1,0 +1,9 @@
+# A 6-hour CPU batch job (e.g. a video transcode) that must finish within 10 hours.
+name: cpu-batch
+kind: cpu
+runtime_hours: 6
+deadline_hours: 10
+restart_overhead_hours: 0.1 # relaunch + restore checkpoint + redo up to ~5 min of work
+requirements:
+  vcpus: 2
+  memory_gb: 8

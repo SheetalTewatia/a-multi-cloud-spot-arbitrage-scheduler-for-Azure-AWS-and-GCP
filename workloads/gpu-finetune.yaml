@@ -1,0 +1,9 @@
+# Fine-tune a small model (e.g. DistilBERT) on any GPU with at least 16 GB of memory.
+name: gpu-finetune
+kind: gpu
+runtime_hours: 3
+deadline_hours: 8
+restart_overhead_hours: 0.25 # relaunch + pull image + reload model and optimizer state
+requirements:
+  min_gpu_memory_gb: 16
+  gpu_count: 1

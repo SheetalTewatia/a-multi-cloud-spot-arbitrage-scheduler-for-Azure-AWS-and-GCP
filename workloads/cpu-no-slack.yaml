@@ -1,0 +1,10 @@
+# Same job but the deadline equals the runtime: any eviction would make it late,
+# so no spot option is feasible and the scorer falls back to on-demand.
+name: cpu-no-slack
+kind: cpu
+runtime_hours: 6
+deadline_hours: 6
+restart_overhead_hours: 0.1
+requirements:
+  vcpus: 2
+  memory_gb: 8

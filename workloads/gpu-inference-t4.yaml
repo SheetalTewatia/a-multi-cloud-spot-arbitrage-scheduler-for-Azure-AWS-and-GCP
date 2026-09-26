@@ -1,0 +1,8 @@
+# Batch inference pinned to a T4 (the only GPU Tide will launch for real runs).
+name: gpu-inference-t4
+kind: gpu
+runtime_hours: 2
+deadline_hours: 4
+restart_overhead_hours: 0.15 # relaunch + reload model; resumes from last processed batch
+requirements:
+  gpu_model: T4
