@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from tide.catalog import Catalog, load_catalog
 from tide.db import engine
-from tide.models import EvictionRisk, Price
+from tide.models import EvictionRisk, Price, Run
 
 FIXTURES = Path(__file__).parent / "fixtures"
 REPO_ROOT = Path(__file__).parent.parent
@@ -32,7 +32,7 @@ def db_session():
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
-    for table in (Price, EvictionRisk):
+    for table in (Price, EvictionRisk, Run):  # deleting runs cascades to decisions
         session.execute(delete(table))
     yield session
     session.close()
